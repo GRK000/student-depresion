@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+
+# Environment
+.env
+
+# Testing
+.pytest_cache/
+
+# Data
+**/data/**
+**/logs/
+
+# IDE
+.vscode/
+*.code-workspace
