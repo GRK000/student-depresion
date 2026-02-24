@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Script d'entrenament (Sessió 2)
+Script d'entrenament (Sessió 5)
 
-Entrena un model de Logistic Regression amb el dataset Student Depression
+Entrena un model de Logistic Regression amb el training split del pipeline
 i guarda el model + preprocessador serialitzats.
 
 Exemple d'ús:
-    python -m app.train
+    python -m app.pipeline   # Primer generar els splits
+    python -m app.train      # Llavors entrenar
 """
 
 import pandas as pd
@@ -19,8 +20,9 @@ import joblib
 from pathlib import Path
 
 
-DATA_PATH = 'data/raw/student_depression_dataset.csv'
 OUTPUT_PATH = 'models/model_v1.pkl'
+TRAINING_SET_PATH = 'data/training_set.parquet'
+VALIDATION_SET_PATH = 'data/validation_set.parquet'
 
 NUMERIC_FEATURES = [
     'Age',
@@ -46,28 +48,21 @@ FEATURE_NAMES = NUMERIC_FEATURES + CATEGORICAL_FEATURES
 TARGET = 'Depression'
 
 
-def load_and_preprocess(data_path: str) -> tuple:
+def load_training_data() -> tuple:
     """
-    Carrega i preprocessa el dataset Student Depression.
+    Carrega el training split preparat pel pipeline.
 
     Returns:
-        tuple: (X, y) amb features i target
+        tuple: (X, y) llests per a model.fit()
     """
-    df = pd.read_csv(data_path)
-    print(f"  Loaded {len(df)} rows")
+    if not Path(TRAINING_SET_PATH).exists():
+        raise FileNotFoundError(
+            f"No s'ha trobat {TRAINING_SET_PATH}. "
+            "Executa primer: python -m app.pipeline"
+        )
 
-    # Seleccionar features i target
-    df = df[FEATURE_NAMES + [TARGET]].copy()
-
-    # Financial Stress pot contenir '?' — convertir a NaN
-    df['Financial Stress'] = pd.to_numeric(df['Financial Stress'], errors='coerce')
-
-    # Eliminar files amb NaN
-    before = len(df)
-    df.dropna(inplace=True)
-    dropped = before - len(df)
-    if dropped > 0:
-        print(f"  Eliminades {dropped} files amb valors nuls")
+    df = pd.read_parquet(TRAINING_SET_PATH)
+    print(f"  Training set carregat: {len(df)} files")
 
     X = df[FEATURE_NAMES]
     y = df[TARGET].astype(int)
@@ -75,21 +70,21 @@ def load_and_preprocess(data_path: str) -> tuple:
     return X, y
 
 
-def train_and_save(data_path: str = DATA_PATH, output_path: str = OUTPUT_PATH):
+def train_and_save(output_path: str = OUTPUT_PATH):
     """
     Entrena el model i guarda els artifacts (model + preprocessador).
     """
     print("=" * 60)
-    print("TRAINING MODEL - Session 2")
+    print("TRAINING MODEL - Session 5")
     print("=" * 60)
 
-    # [1/4] Carregar i preprocessar dades
-    print("\n[1/4] Loading and preprocessing data...")
-    X, y = load_and_preprocess(data_path)
+    # [1/4] Carregar training split del pipeline
+    print("\n[1/4] Loading training data from pipeline split...")
+    X, y = load_training_data()
     print(f"  Dataset: {X.shape[0]} samples, {X.shape[1]} features")
     print(f"  Target distribution: {y.value_counts().to_dict()}")
 
-    # [2/4] Split train/test
+    # [2/4] Split train/test intern
     print("\n[2/4] Splitting train/test...")
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
