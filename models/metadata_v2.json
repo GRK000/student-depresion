@@ -1,0 +1,19 @@
+{
+  "version": "v2",
+  "timestamp": "2026-03-03T15:45:37.196332",
+  "model_type": "logistic_regression",
+  "metrics": {
+    "accuracy": 0.8551971326164874,
+    "precision": 0.8647285671907445,
+    "recall": 0.8922558922558923,
+    "f1_score": 0.8782765893341368,
+    "roc_auc": 0.925451504392667,
+    "confusion_matrix": {
+      "true_negative": 1857,
+      "false_positive": 456,
+      "false_negative": 352,
+      "true_positive": 2915
+    }
+  },
+  "deployment_ready": true
+}

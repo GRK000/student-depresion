@@ -16,6 +16,9 @@ pydantic-settings
 python-dotenv
 pyarrow==23.0.0
 
+# YAML config - Session 7
+pyyaml==6.0.3
+
 # Notebook / EDA
 kagglehub[pandas-datasets]
 matplotlib

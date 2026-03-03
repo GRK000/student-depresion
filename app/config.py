@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     # Model - MUST be set in .env (no hardcoded default)
     MODEL_PATH: str
+    METADATA_PATH: str
 
     # API
     PORT: int = 8000
@@ -42,7 +43,7 @@ class Settings(BaseSettings):
 
 
 # 🔮 SESSIONS FUTURES:
-# S'afegiran més camps: METADATA_PATH, PREDICTIONS_LOG_PATH, etc.
+# S'afegirà: PREDICTIONS_LOG_PATH per al logging de prediccions
 
 
 _settings = None

@@ -1,0 +1,10 @@
+# Deployment Criteria for Student Depression Prediction Model
+
+deployment_criteria:
+  min_precision: 0.75    # At least 75% of positive predictions correct
+  min_recall: 0.70       # Catch at least 70% of actual depression cases
+  min_f1_score: 0.72     # Balance between precision and recall
+  min_roc_auc: 0.80      # Good discrimination ability
+
+  # Mental health context: recall > precision
+  # False negatives (missed depression) cost more than false positives (unnecessary follow-up)
