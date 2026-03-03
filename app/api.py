@@ -19,6 +19,7 @@ from sklearn.compose import ColumnTransformer
 
 from app.schemas import StudentDepressionInput, PredictionResponse, HealthResponse
 from app.config import settings, setup_logging
+from app.pred_store import save_prediction, find_all_predictions
 
 # Setup logging
 setup_logging()
@@ -95,6 +96,20 @@ def health_check():
     }
 
 
+@app.get("/predictions", tags=["Monitoring"])
+async def get_predictions(limit: int = 100):
+    """Retrieve recent predictions from the store."""
+    try:
+        predictions = find_all_predictions(limit=limit)
+        return {
+            "count": len(predictions),
+            "predictions": predictions
+        }
+    except Exception as e:
+        logger.error(f"Failed to read predictions: {e}")
+        raise HTTPException(status_code=500, detail="Failed to read prediction records")
+
+
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(request: StudentDepressionInput):
     """
@@ -120,6 +135,20 @@ async def predict(request: StudentDepressionInput):
     if hasattr(_model, 'predict_proba'):
         proba = _model.predict_proba(X_processed)[0]
         probability = float(proba[1])
+
+    # Persist prediction record
+    save_prediction(
+        input_data=features_dict,
+        prediction=prediction,
+        probability=probability,
+        model_version=_model_version or "unknown"
+    )
+
+    logger.info(
+        "Prediction: %d | Probability: %s",
+        prediction,
+        f"{probability:.3f}" if probability is not None else "N/A",
+    )
 
     return {
         "prediction": prediction,

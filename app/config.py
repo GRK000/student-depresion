@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     MODEL_PATH: str
     METADATA_PATH: str
 
+    # Prediction Logging (JSON file-based)
+    PREDICTIONS_LOG_PATH: str = "data/predictions.jsonl"
+
     # API
     PORT: int = 8000
     HOST: str = "0.0.0.0"
@@ -40,10 +43,6 @@ class Settings(BaseSettings):
     def resolve_path(self, path: str) -> Path:
         """Resol un path relatiu al directori arrel del projecte."""
         return PROJECT_ROOT / path
-
-
-# 🔮 SESSIONS FUTURES:
-# S'afegirà: PREDICTIONS_LOG_PATH per al logging de prediccions
 
 
 _settings = None
