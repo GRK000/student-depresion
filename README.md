@@ -191,6 +191,101 @@ mlops/
 
 ---
 
+## Docker
+
+### Construir la imatge
+
+```bash
+cd mlops/
+docker build -t student-depression-api .
+```
+
+El build passa per dues fases principals:
+1. Instal·la `curl` (necessari per al `HEALTHCHECK`)
+2. Instal·la les dependències Python (`requirements.txt`) en una capa separada per aprofitar la caché
+3. Copia `app/`, `models/` i `config/` dins la imatge
+
+Les carpetes `data/` i `logs/` **no** s'inclouen a la imatge — es munten com a volums en temps d'execució.
+
+### Arrencar el contenidor
+
+```bash
+docker run -d \
+  -p 8000:8000 \
+  --env-file .env \
+  -v ./data:/app/data \
+  -v ./logs:/app/logs \
+  --name student-api \
+  student-depression-api
+```
+
+| Opció | Descripció |
+|-------|-----------|
+| `-p 8000:8000` | Mapeig del port 8000 del contenidor al 8000 de l'host |
+| `--env-file .env` | Carrega variables d'entorn (MODEL_PATH, METADATA_PATH, etc.) |
+| `-v ./data:/app/data` | Munta la carpeta local `data/` — persistència del `predictions.jsonl` |
+| `-v ./logs:/app/logs` | Munta la carpeta local `logs/` — persistència dels logs de l'API |
+
+### Verificar que funciona
+
+```bash
+# Health check manual
+curl http://localhost:8000/health
+
+# Resposta esperada:
+# {"status":"healthy","model_loaded":true,"model_version":"1.0.0"}
+
+# Endpoint arrel
+curl http://localhost:8000/
+
+# Fer una predicció
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Age": 22,
+    "Gender": "Female",
+    "Academic Pressure": 4,
+    "Work Pressure": 2,
+    "CGPA": 7.5,
+    "Study Satisfaction": 2,
+    "Job Satisfaction": 3,
+    "Sleep Duration": "5-6 hours",
+    "Dietary Habits": "Moderate",
+    "Degree": "BSc",
+    "Have you ever had suicidal thoughts ?": "No",
+    "Work/Study Hours": 8,
+    "Financial Stress": 3,
+    "Family History of Mental Illness": "No"
+  }'
+
+# Consultar l'historial de prediccions
+curl "http://localhost:8000/predictions?limit=10"
+
+# Documentació interactiva (obre al navegador)
+# http://localhost:8000/docs
+```
+
+### Verificar el HEALTHCHECK automàtic
+
+Docker comprova `/health` cada 30 s (configurat al `Dockerfile`):
+
+```bash
+# Veure l'estat del contenidor (la columna STATUS mostra healthy/starting/unhealthy)
+docker ps
+
+# Exemple de sortida:
+# CONTAINER ID   IMAGE                    STATUS                   PORTS
+# abc123def456   student-depression-api   Up 2 minutes (healthy)   0.0.0.0:8000->8000/tcp
+```
+
+### Aturar i eliminar el contenidor
+
+```bash
+docker stop student-api && docker rm student-api
+```
+
+---
+
 ## Checkpoint de sessions
 
 - [x] **Sessió 1** — CLI de predicció (`predict.py` + `argparse`)
@@ -200,4 +295,6 @@ mlops/
 - [x] **Sessió 5** — Pipeline complet: splits 60/20/20 estratificats → Parquet
 - [x] **Sessió 6** — README documentat
 - [x] **Sessió 7** — Model versioning + quality gate (`deployment_criteria.yaml`) + metadades JSON
+- [x] **Sessió 8** — Persistència de prediccions (`pred_store.py` + endpoint `/predictions`)
+- [x] **Sessió 9** — Docker (`Dockerfile` + `.dockerignore` + imatge verificada)
 - [x] **Sessió 8** — Persistència de prediccions (`pred_store.py`) + endpoint `GET /predictions`
