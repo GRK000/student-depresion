@@ -185,6 +185,10 @@ mlops/
 │   └── model_v3.pkl / metadata_v3.json  # Versions posteriors
 ├── logs/
 ├── .env
+├── compose.yml                   # Docker Compose: servei, ports, volums
+├── Dockerfile                    # Multi-stage: base → production (usuari no-root)
+├── .dockerignore
+├── Makefile                      # Automatització: setup, train, docker-up, health, predict
 ├── requirements.txt
 └── README.md
 ```
@@ -193,95 +197,108 @@ mlops/
 
 ## Docker
 
-### Construir la imatge
+### Arquitectura multi-stage
+
+El `Dockerfile` té dos stages:
+
+| Stage | Contingut | Ús |
+|-------|-----------|-----|
+| `base` | Sistema + deps Python + `appuser` (UID 1000) | Base compartida |
+| `production` | Copia `app/` + `models/` + `config/` com a `appuser` | Imatge final |
+
+El servei s'executa com a usuari **no-root** (`appuser`), eliminant un vector d'atac si hi ha vulnerabilitats al codi.
+
+### Workflow amb Makefile
+
+El `Makefile` centralitza totes les operacions del projecte:
 
 ```bash
-cd mlops/
-docker build -t student-depression-api .
+make help           # Llista tots els targets disponibles
+
+make setup          # Crea .venv i instal·la dependències
+make pipeline       # Genera els splits de dades (Parquet)
+make train          # Entrena el model (auto-versioning + quality gate)
+
+make docker-build   # Construeix la imatge (docker compose build)
+make docker-up      # Arrenca el servei (crea data/ logs/, ajusta permisos, compose up -d)
+make docker-down    # Para el servei (docker compose down)
+
+make health         # Comprova GET /health → JSON formatat
+make predict        # Fa una predicció de prova → JSON formatat
+
+make dev            # Arrenca l'API localment amb hot-reload (sense Docker)
+make clean          # Elimina .venv, __pycache__, parquets, logs
 ```
 
-El build passa per dues fases principals:
-1. Instal·la `curl` (necessari per al `HEALTHCHECK`)
-2. Instal·la les dependències Python (`requirements.txt`) en una capa separada per aprofitar la caché
-3. Copia `app/`, `models/` i `config/` dins la imatge
-
-Les carpetes `data/` i `logs/` **no** s'inclouen a la imatge — es munten com a volums en temps d'execució.
-
-### Arrencar el contenidor
+### Arrencar el servei
 
 ```bash
-docker run -d \
-  -p 8000:8000 \
-  --env-file .env \
-  -v ./data:/app/data \
-  -v ./logs:/app/logs \
-  --name student-api \
-  student-depression-api
+# Workflow complet des de zero
+make docker-build
+make docker-up
+
+# Verificar
+make health
+# {"status": "healthy", "model_loaded": true, "model_version": "1.0.0"}
+
+make predict
+# {"prediction": 0, "probability": 0.043, "model_version": "1.0.0"}
 ```
 
-| Opció | Descripció |
-|-------|-----------|
-| `-p 8000:8000` | Mapeig del port 8000 del contenidor al 8000 de l'host |
-| `--env-file .env` | Carrega variables d'entorn (MODEL_PATH, METADATA_PATH, etc.) |
-| `-v ./data:/app/data` | Munta la carpeta local `data/` — persistència del `predictions.jsonl` |
-| `-v ./logs:/app/logs` | Munta la carpeta local `logs/` — persistència dels logs de l'API |
+### compose.yml — configuració declarativa
 
-### Verificar que funciona
+```yaml
+name: mlops
+
+services:
+  api:
+    build:
+      context: .
+      target: production      # Stage multi-stage a construir
+    ports:
+      - "${PORT:-8000}:8000"  # Port llegit de .env (default 8000)
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs      # Logs persistents a l'amfitrió
+      - ./data:/app/data      # predictions.jsonl persistent
+    restart: unless-stopped
+```
+
+Substitueix el `docker run` amb cinc flags per configuració versionada al repositori. Qualsevol persona que cloni el repo pot arrencar el servei amb `make docker-up` sense llegir documentació addicional.
+
+### Verificar persistència de prediccions
 
 ```bash
-# Health check manual
-curl http://localhost:8000/health
+make docker-up
+make predict                            # Escriu 1 línia a data/predictions.jsonl
+wc -l data/predictions.jsonl           # Compte línies
 
-# Resposta esperada:
-# {"status":"healthy","model_loaded":true,"model_version":"1.0.0"}
+make docker-down && make docker-up     # Restart complet
+wc -l data/predictions.jsonl           # Ha de tenir el mateix nombre de línies
+```
 
-# Endpoint arrel
-curl http://localhost:8000/
+### Verificar l'usuari no-root
 
-# Fer una predicció
-curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Age": 22,
-    "Gender": "Female",
-    "Academic Pressure": 4,
-    "Work Pressure": 2,
-    "CGPA": 7.5,
-    "Study Satisfaction": 2,
-    "Job Satisfaction": 3,
-    "Sleep Duration": "5-6 hours",
-    "Dietary Habits": "Moderate",
-    "Degree": "BSc",
-    "Have you ever had suicidal thoughts ?": "No",
-    "Work/Study Hours": 8,
-    "Financial Stress": 3,
-    "Family History of Mental Illness": "No"
-  }'
-
-# Consultar l'historial de prediccions
-curl "http://localhost:8000/predictions?limit=10"
-
-# Documentació interactiva (obre al navegador)
-# http://localhost:8000/docs
+```bash
+docker run --rm student-depression-api whoami
+# appuser
 ```
 
 ### Verificar el HEALTHCHECK automàtic
 
-Docker comprova `/health` cada 30 s (configurat al `Dockerfile`):
-
 ```bash
-# Veure l'estat del contenidor (la columna STATUS mostra healthy/starting/unhealthy)
-docker ps
-
-# Exemple de sortida:
-# CONTAINER ID   IMAGE                    STATUS                   PORTS
-# abc123def456   student-depression-api   Up 2 minutes (healthy)   0.0.0.0:8000->8000/tcp
+docker compose ps
+# CONTAINER ID   STATUS                    PORTS
+# mlops-api-1    Up 2 minutes (healthy)    0.0.0.0:8000->8000/tcp
 ```
 
-### Aturar i eliminar el contenidor
+Docker comprova `/health` cada 30 s (configurat al `Dockerfile`). El servei passa a `healthy` ~10 s després d'arrencar.
+
+### Aturar el servei
 
 ```bash
-docker stop student-api && docker rm student-api
+make docker-down
 ```
 
 ---
@@ -295,6 +312,6 @@ docker stop student-api && docker rm student-api
 - [x] **Sessió 5** — Pipeline complet: splits 60/20/20 estratificats → Parquet
 - [x] **Sessió 6** — README documentat
 - [x] **Sessió 7** — Model versioning + quality gate (`deployment_criteria.yaml`) + metadades JSON
-- [x] **Sessió 8** — Persistència de prediccions (`pred_store.py` + endpoint `/predictions`)
-- [x] **Sessió 9** — Docker (`Dockerfile` + `.dockerignore` + imatge verificada)
 - [x] **Sessió 8** — Persistència de prediccions (`pred_store.py`) + endpoint `GET /predictions`
+- [x] **Sessió 9** — Docker single-stage (`Dockerfile` + `.dockerignore` + imatge verificada)
+- [x] **Sessió 10** — Docker multi-stage (base → production, usuari no-root) + `compose.yml` + `Makefile`

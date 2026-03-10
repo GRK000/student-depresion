@@ -50,6 +50,8 @@ docker-build:
 
 docker-up:
 	mkdir -p data logs
+	@# Ensure appuser (UID 1000) can write to mounted volumes
+	@chown -R 1000:1000 data/ logs/ 2>/dev/null || sudo chown -R 1000:1000 data/ logs/
 	docker compose up -d
 	@echo "Service started at http://localhost:$(PORT)"
 
