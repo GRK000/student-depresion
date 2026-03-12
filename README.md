@@ -169,6 +169,12 @@ mlops/
 │   ├── predict.py      # CLI: predicció per línia de comandes
 │   ├── schemas.py      # Pydantic: StudentDepressionInput, PredictionResponse
 │   └── train.py        # Entrenament: versioning + quality gate + metadades JSON
+├── tests/
+│   ├── __init__.py          # Package marker
+│   ├── conftest.py          # Fixtures: client, temp_predictions_log, loaded_model
+│   ├── test_api.py          # 6 tests: health, predict, errors 422, logging
+│   ├── test_model.py        # 2 tests: càrrega model, format predicció
+│   └── test_pipeline.py     # 4 tests: normalize_columns, schema Pydantic
 ├── config/
 │   └── deployment_criteria.yaml  # Criteris mínims de qualitat
 ├── data/
@@ -186,9 +192,9 @@ mlops/
 ├── logs/
 ├── .env
 ├── compose.yml                   # Docker Compose: servei, ports, volums
-├── Dockerfile                    # Multi-stage: base → production (usuari no-root)
+├── Dockerfile                    # Multi-stage: base → test → production
 ├── .dockerignore
-├── Makefile                      # Automatització: setup, train, docker-up, health, predict
+├── Makefile                      # Automatització: setup, test, docker-up, health, predict
 ├── requirements.txt
 └── README.md
 ```
@@ -199,11 +205,12 @@ mlops/
 
 ### Arquitectura multi-stage
 
-El `Dockerfile` té dos stages:
+El `Dockerfile` té tres stages:
 
 | Stage | Contingut | Ús |
 |-------|-----------|-----|
 | `base` | Sistema + deps Python + `appuser` (UID 1000) | Base compartida |
+| `test` | Copia tot el projecte, executa `pytest` | Quality gate |
 | `production` | Copia `app/` + `models/` + `config/` com a `appuser` | Imatge final |
 
 El servei s'executa com a usuari **no-root** (`appuser`), eliminant un vector d'atac si hi ha vulnerabilitats al codi.
@@ -216,12 +223,14 @@ El `Makefile` centralitza totes les operacions del projecte:
 make help           # Llista tots els targets disponibles
 
 make setup          # Crea .venv i instal·la dependències
+make test           # Executa pytest (12 tests: pipeline, model, API)
 make pipeline       # Genera els splits de dades (Parquet)
 make train          # Entrena el model (auto-versioning + quality gate)
 
 make docker-build   # Construeix la imatge (docker compose build)
 make docker-up      # Arrenca el servei (crea data/ logs/, ajusta permisos, compose up -d)
 make docker-down    # Para el servei (docker compose down)
+make docker-test    # Executa tests dins del contenidor Docker
 
 make health         # Comprova GET /health → JSON formatat
 make predict        # Fa una predicció de prova → JSON formatat
@@ -303,6 +312,55 @@ make docker-down
 
 ---
 
+## Testing
+
+Suite de 12 tests automatitzats amb `pytest`, organitzats en tres àrees:
+
+### Tests de pipeline i schema (4 tests — `test_pipeline.py`)
+
+| Test | Què verifica |
+|------|-------------|
+| `test_normalize_columns_drops_metadata` | `normalize_columns` elimina `id`, `City`, `Profession` |
+| `test_normalize_columns_keeps_features` | Manté les 14 features + `Depression` target |
+| `test_schema_validation_valid` | `StudentDepressionInput` accepta dades vàlides |
+| `test_schema_validation_invalid_age` | Rebutja `age > 60` amb `ValidationError` |
+
+### Tests de model (2 tests — `test_model.py`)
+
+| Test | Què verifica |
+|------|-------------|
+| `test_model_loads_successfully` | El `.pkl` conté `model`, `preprocessor`, `feature_names` |
+| `test_model_prediction_format` | Predicció és 0/1, probabilitats en [0, 1] |
+
+### Tests d'API (6 tests — `test_api.py`)
+
+| Test | Què verifica |
+|------|-------------|
+| `test_health_endpoint` | `GET /health` → 200, `status: "healthy"` |
+| `test_predict_valid_input` | `POST /predict` → 200, predicció + probabilitat |
+| `test_predict_missing_field` | Camps faltants → 422 |
+| `test_predict_invalid_range` | `age: 150` → 422 |
+| `test_predict_returns_model_version` | Resposta inclou `model_version` no buit |
+| `test_predict_logs_to_file` | Predicció s'escriu al fitxer JSONL (integració) |
+
+### Aïllament de tests
+
+- **`temp_predictions_log` (autouse=True):** Cada test escriu a un fitxer temporal, mai al `predictions.jsonl` real
+- **`client` (scope="session"):** El `TestClient` inicialitza el `lifespan` de FastAPI (càrrega del model) una sola vegada
+- **`loaded_model` (scope="session"):** El model es carrega una sola vegada per a tots els tests de model
+
+### Executar els tests
+
+```bash
+# Localment (12 tests)
+make test
+
+# Dins del contenidor Docker (stage test)
+make docker-test
+```
+
+---
+
 ## Checkpoint de sessions
 
 - [x] **Sessió 1** — CLI de predicció (`predict.py` + `argparse`)
@@ -315,3 +373,4 @@ make docker-down
 - [x] **Sessió 8** — Persistència de prediccions (`pred_store.py`) + endpoint `GET /predictions`
 - [x] **Sessió 9** — Docker single-stage (`Dockerfile` + `.dockerignore` + imatge verificada)
 - [x] **Sessió 10** — Docker multi-stage (base → production, usuari no-root) + `compose.yml` + `Makefile`
+- [x] **Sessió 11** — Testing: 12 tests pytest (pipeline/schema + model + API) + stage `test` al Dockerfile

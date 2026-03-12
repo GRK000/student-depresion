@@ -3,7 +3,7 @@ export
 
 SHELL := /bin/bash
 
-VENV := .venv
+VENV := ../.venv
 PYTHON := $(VENV)/bin/python
 PYTEST := $(VENV)/bin/pytest
 PIP := $(VENV)/bin/pip
@@ -31,6 +31,7 @@ help:
 	@echo ""
 	@echo "Optional targets:"
 	@echo "  make dev            — Run API locally (uvicorn with hot-reload)"
+	@echo "  make docker-test    — Run tests in Docker container"
 	@echo "  make pipeline       — Run data pipeline"
 	@echo "  make train          — Train model"
 	@echo "  make clean          — Clean generated files"
@@ -42,8 +43,7 @@ setup:
 	@echo "Setup complete. Activate with: source $(VENV)/bin/activate"
 
 test: $(VENV)
-	@test -d tests || (echo "ERROR: tests/ directory not found. Tests are added in Session 11." && exit 1)
-	$(PYTEST) tests/ -v
+	PYTHONPATH=. $(PYTEST) tests/ -v
 
 docker-build:
 	docker compose build
@@ -73,6 +73,14 @@ predict:
 
 dev: $(VENV)
 	$(VENV)/bin/uvicorn app.api:app --reload --port 8000
+
+docker-test:
+	docker build --target test -t mlops-test .
+	docker run --rm \
+		-e MODEL_PATH=$(MODEL_PATH) \
+		-e METADATA_PATH=$(METADATA_PATH) \
+		-e PREDICTIONS_LOG_PATH=$(PREDICTIONS_LOG_PATH) \
+		mlops-test
 
 pipeline: $(VENV)
 	$(PYTHON) -m app.pipeline

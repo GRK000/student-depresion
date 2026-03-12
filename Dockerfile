@@ -20,6 +20,12 @@ RUN useradd -m -u 1000 appuser && \
     mkdir -p data logs && \
     chown -R appuser:appuser /app
 
+# ==================== TEST STAGE ====================
+FROM base AS test
+COPY --chown=appuser:appuser . .
+USER appuser
+CMD ["pytest", "tests/", "-v"]
+
 # ==================== PRODUCTION STAGE ====================
 FROM base AS production
 
