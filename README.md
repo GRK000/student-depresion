@@ -21,8 +21,7 @@ python -m app.train
 # METADATA_PATH=models/metadata_vN.json
 
 # 5. Arrencar l'API
-u
-vicorn app.api:app --reload
+uvicorn app.api:app --reload
 ```
 
 ---
@@ -114,7 +113,7 @@ deployment_criteria:
 
 El resultat es guarda a `models/metadata_vN.json` amb el flag `deployment_ready: true/false`. Només s'actualitza `.env` si `deployment_ready` és `true`.
 
-### Mètriques del model actiu (v2)
+### Mètriques del model actiu (v3)
 
 | Mètrica | Valor |
 |---------|-------|
@@ -186,11 +185,15 @@ mlops/
 │   └── predictions.jsonl         # Generat en execució
 ├── models/
 │   ├── model_v1.pkl              # Model sessió 5 (sense metadades)
-│   ├── model_v2.pkl              # ← model actiu (.env)
-│   ├── metadata_v2.json          # deployment_ready: true
-│   └── model_v3.pkl / metadata_v3.json  # Versions posteriors
+│   ├── model_v2.pkl / metadata_v2.json
+│   └── model_v3.pkl / metadata_v3.json  # ← model actiu (.env/.env.production)
 ├── logs/
 ├── .env
+├── .env.production              # Entorn CI/CD comès al repositori
+├── .cicd/
+│   └── hooks/
+│       ├── validate.sh          # Phase 1: make docker-test
+│       └── pre-deploy.sh        # Phase 2: comprova deployment_ready
 ├── compose.yml                   # Docker Compose: servei, ports, volums
 ├── Dockerfile                    # Multi-stage: base → test → production
 ├── .dockerignore
@@ -361,6 +364,36 @@ make docker-test
 
 ---
 
+## CI/CD Validació (Sessió 12)
+
+La validació s'executa al servidor en cada `git push`:
+
+1. **Phase 1 (`validate.sh`)**
+  - copia `.env.production` a `.env`
+  - executa `make docker-test`
+2. **Phase 2 (`pre-deploy.sh`)**
+  - llegeix `METADATA_PATH`
+  - valida `deployment_ready` del JSON de metadades
+
+> Separació clau: `git push` **valida**; el desplegament real amb tags s'implementa a la sessió següent.
+
+### Fitxers de la sessió
+
+- `.env.production`
+- `.cicd/hooks/validate.sh`
+- `.cicd/hooks/pre-deploy.sh`
+
+### Verificació local abans de fer push
+
+```bash
+bash .cicd/hooks/validate.sh
+bash .cicd/hooks/pre-deploy.sh
+```
+
+Si `pre-deploy.sh` falla, el model no és desplegable (`deployment_ready=false`).
+
+---
+
 ## Checkpoint de sessions
 
 - [x] **Sessió 1** — CLI de predicció (`predict.py` + `argparse`)
@@ -374,3 +407,4 @@ make docker-test
 - [x] **Sessió 9** — Docker single-stage (`Dockerfile` + `.dockerignore` + imatge verificada)
 - [x] **Sessió 10** — Docker multi-stage (base → production, usuari no-root) + `compose.yml` + `Makefile`
 - [x] **Sessió 11** — Testing: 12 tests pytest (pipeline/schema + model + API) + stage `test` al Dockerfile
+- [x] **Sessió 12** — CI/CD validació: `.env.production` + hooks `validate.sh` i `pre-deploy.sh`
