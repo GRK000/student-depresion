@@ -6,7 +6,7 @@ services:
       context: .
       target: production
     ports:
-      - "${PORT:-8000}:8000"
+      - "${PORT:-8083}:8000"
     env_file:
       - .env
     volumes:

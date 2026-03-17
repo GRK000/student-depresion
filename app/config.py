@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     PREDICTIONS_LOG_PATH: str = "data/predictions.jsonl"
 
     # API
-    PORT: int = 8000
+    PORT: int = 8083
     HOST: str = "0.0.0.0"
 
     # Logging

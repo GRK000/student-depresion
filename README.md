@@ -268,7 +268,7 @@ services:
       context: .
       target: production      # Stage multi-stage a construir
     ports:
-      - "${PORT:-8000}:8000"  # Port llegit de .env (default 8000)
+      - "${PORT:-8083}:8000"  # Port llegit de .env (default 8083)
     env_file:
       - .env
     volumes:
@@ -302,7 +302,7 @@ docker run --rm student-depression-api whoami
 ```bash
 docker compose ps
 # CONTAINER ID   STATUS                    PORTS
-# mlops-api-1    Up 2 minutes (healthy)    0.0.0.0:8000->8000/tcp
+# mlops-api-1    Up 2 minutes (healthy)    0.0.0.0:8083->8000/tcp
 ```
 
 Docker comprova `/health` cada 30 s (configurat al `Dockerfile`). El servei passa a `healthy` ~10 s després d'arrencar.

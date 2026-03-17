@@ -8,7 +8,7 @@ PYTHON := $(VENV)/bin/python
 PYTEST := $(VENV)/bin/pytest
 PIP := $(VENV)/bin/pip
 
-PORT ?= 8000
+PORT ?= 8083
 
 .DEFAULT_GOAL := help
 
@@ -72,7 +72,7 @@ predict:
 # ===================== OPTIONAL TARGETS =====================
 
 dev: $(VENV)
-	$(VENV)/bin/uvicorn app.api:app --reload --port 8000
+	$(VENV)/bin/uvicorn app.api:app --reload --port 8083
 
 docker-test:
 	docker build --target test -t mlops-test .
