@@ -193,7 +193,9 @@ mlops/
 ├── .cicd/
 │   └── hooks/
 │       ├── validate.sh          # Phase 1: make docker-test
-│       └── pre-deploy.sh        # Phase 2: comprova deployment_ready
+│       ├── pre-deploy.sh        # Phase 2: comprova deployment_ready
+│       ├── deploy.sh            # Phase 3: docker-build + docker-up
+│       └── post-deploy.sh       # Phase 4: retry health + make predict
 ├── compose.yml                   # Docker Compose: servei, ports, volums
 ├── Dockerfile                    # Multi-stage: base → test → production
 ├── .dockerignore
@@ -364,33 +366,53 @@ make docker-test
 
 ---
 
-## CI/CD Validació (Sessió 12)
+## CI/CD — Pipeline complet (Sessions 12–13)
 
-La validació s'executa al servidor en cada `git push`:
+El pipeline CI/CD té quatre fases executades en seqüència al servidor:
 
-1. **Phase 1 (`validate.sh`)**
-  - copia `.env.production` a `.env`
-  - executa `make docker-test`
-2. **Phase 2 (`pre-deploy.sh`)**
-  - llegeix `METADATA_PATH`
-  - valida `deployment_ready` del JSON de metadades
+| Fase | Hook | Trigger | Què fa |
+|------|------|---------|--------|
+| 1 | `validate.sh` | `git push` | Copia `.env.production` → `.env`; executa `make docker-test` |
+| 2 | `pre-deploy.sh` | `git push` | Llegeix `METADATA_PATH`; verifica `deployment_ready == true` |
+| 3 | `deploy.sh` | `git tag` | `docker-down` (tolerant a errors) → `docker-build` → `docker-up` |
+| 4 | `post-deploy.sh` | `git tag` | Retry loop (`make health`, 6 intents × 5 s) → `make predict` |
 
-> Separació clau: `git push` **valida**; el desplegament real amb tags s'implementa a la sessió següent.
+### Workflow
 
-### Fitxers de la sessió
+```
+git push origin master
+    → Phase 1: validate.sh   (tests en Docker)
+    → Phase 2: pre-deploy.sh (quality gate)
+    → VALIDACIÓ CORRECTA — sense desplegament
 
-- `.env.production`
-- `.cicd/hooks/validate.sh`
-- `.cicd/hooks/pre-deploy.sh`
-
-### Verificació local abans de fer push
-
-```bash
-bash .cicd/hooks/validate.sh
-bash .cicd/hooks/pre-deploy.sh
+git tag -a v1.0 -m "Deploy v1.0" && git push origin v1.0
+    → Phase 1: validate.sh
+    → Phase 2: pre-deploy.sh
+    → Phase 3: deploy.sh
+    → Phase 4: post-deploy.sh
+    → DESPLEGAMENT COMPLETAT
 ```
 
-Si `pre-deploy.sh` falla, el model no és desplegable (`deployment_ready=false`).
+### Verificació local
+
+```bash
+# Verificar que les quatre fases passen localment abans del tag
+bash .cicd/hooks/validate.sh
+bash .cicd/hooks/pre-deploy.sh
+bash .cicd/hooks/deploy.sh
+bash .cicd/hooks/post-deploy.sh
+```
+
+### Escenari de fallada
+
+Si `deployment_ready: false` al JSON de metadades, `pre-deploy.sh` atura el pipeline a la Phase 2 i `deploy.sh` mai s'executa:
+
+```bash
+# Testar el quality gate manualment
+# Editar metadata_vN.json: "deployment_ready": false
+bash .cicd/hooks/pre-deploy.sh
+# ERROR: Model not ready for deployment (exit 1)
+```
 
 ---
 
@@ -408,3 +430,4 @@ Si `pre-deploy.sh` falla, el model no és desplegable (`deployment_ready=false`)
 - [x] **Sessió 10** — Docker multi-stage (base → production, usuari no-root) + `compose.yml` + `Makefile`
 - [x] **Sessió 11** — Testing: 12 tests pytest (pipeline/schema + model + API) + stage `test` al Dockerfile
 - [x] **Sessió 12** — CI/CD validació: `.env.production` + hooks `validate.sh` i `pre-deploy.sh`
+- [x] **Sessió 13** — CI/CD desplegament: hooks `deploy.sh` i `post-deploy.sh` + primer deploy amb `git tag`
