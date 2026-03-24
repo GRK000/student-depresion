@@ -1,4 +1,4 @@
-name: mlops
+name: utopia
 
 services:
   api:
