@@ -7,6 +7,8 @@ API de predicció de risc de depressió en estudiants, construïda amb FastAPI i
 ## Quick Start
 
 ```bash
+# Requisit recomanat: Python 3.11.x (.python-version = 3.11.2)
+#
 # 1. Instal·lar dependències
 pip install -r requirements.txt
 
@@ -23,6 +25,8 @@ python -m app.train
 # 5. Arrencar l'API
 uvicorn app.api:app --reload
 ```
+
+Nota: el nou training afegeix `tests/test_train.py` i genera `models/report_vN.md` amb la comparativa cientifica i l'analisi d'errors del model seleccionat.
 
 ---
 
@@ -122,6 +126,27 @@ El resultat es guarda a `models/metadata_vN.json` amb el flag `deployment_ready:
 | Recall | 89,23 % |
 | F1 Score | 87,83 % |
 | ROC-AUC | 92,55 % |
+
+### Nucli cientific actualitzat
+
+El training nou ja no es limita a un unic model. `python -m app.train` compara `Logistic Regression`, `Random Forest` i `XGBoost`, aplica el mateix quality gate a tots tres i selecciona el guanyador amb un criteri **recall-first**.
+
+Sortides generades a cada execucio:
+
+- `models/model_vN.pkl`: artifact del model guanyador, compatible amb l'API
+- `models/metadata_vN.json`: metrics finals, comparativa entre models, confusion matrix, error analysis i feature importance
+- `models/report_vN.md`: informe en Markdown amb taula final, conclusio i justificacio de la seleccio
+
+La prioritat de seleccio es:
+
+1. Models `deployment_ready`
+2. `recall`
+3. `f1_score`
+4. `roc_auc`
+5. `precision`
+6. `accuracy`
+
+Aixo fa explicit al repositori que, en aquest context, un fals negatiu es pitjor que un fals positiu.
 
 ---
 
@@ -416,18 +441,3 @@ bash .cicd/hooks/pre-deploy.sh
 
 ---
 
-## Checkpoint de sessions
-
-- [x] **Sessió 1** — CLI de predicció (`predict.py` + `argparse`)
-- [x] **Sessió 2** — API FastAPI (`/health`, `/predict`) + model `LogisticRegression`
-- [x] **Sessió 3** — Validació Pydantic (`schemas.py`: `StudentDepressionInput`)
-- [x] **Sessió 4** — Configuració centralitzada (`config.py` + `.env`) + pipeline ETL bàsic
-- [x] **Sessió 5** — Pipeline complet: splits 60/20/20 estratificats → Parquet
-- [x] **Sessió 6** — README documentat
-- [x] **Sessió 7** — Model versioning + quality gate (`deployment_criteria.yaml`) + metadades JSON
-- [x] **Sessió 8** — Persistència de prediccions (`pred_store.py`) + endpoint `GET /predictions`
-- [x] **Sessió 9** — Docker single-stage (`Dockerfile` + `.dockerignore` + imatge verificada)
-- [x] **Sessió 10** — Docker multi-stage (base → production, usuari no-root) + `compose.yml` + `Makefile`
-- [x] **Sessió 11** — Testing: 12 tests pytest (pipeline/schema + model + API) + stage `test` al Dockerfile
-- [x] **Sessió 12** — CI/CD validació: `.env.production` + hooks `validate.sh` i `pre-deploy.sh`
-- [x] **Sessió 13** — CI/CD desplegament: hooks `deploy.sh` i `post-deploy.sh` + primer deploy amb `git tag`
