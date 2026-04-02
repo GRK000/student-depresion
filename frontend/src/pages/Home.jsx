@@ -52,7 +52,7 @@ function Home() {
 
           <div className="mt-10 flex flex-col gap-3 sm:flex-row">
             <Button size="lg" onClick={() => setShowModal(true)}>
-              Comenzar evaluación
+              Comenzar conversación
               <ArrowRight size={18} />
             </Button>
             <Button as={Link} to="/about" size="lg" variant="secondary">
