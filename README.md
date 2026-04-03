@@ -254,9 +254,3 @@ docker compose up
 
 - This product is built as a technical portfolio project with production-minded engineering choices.
 - It is not a clinical diagnostic tool and should not replace professional mental-health evaluation.
-
-## Suggested README Enhancements
-
-- Place a short GIF directly under the hero section showing: landing -> assessment -> prediction result.
-- Keep the current badges above the fold; add CI and deploy badges once those endpoints are public.
-- If you record a demo, use a 20-30 second clip focused on user flow, not code.
